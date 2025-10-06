@@ -1,0 +1,46 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-yaml
+      - id: check-toml
+      - id: debug-statements
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.8
+    hooks:
+      - id: ruff
+        name: ruff (auto-fix on commit)
+        args: ["--fix"]
+        stages: [pre-commit]
+      - id: ruff
+        name: ruff (post-fix check)
+        stages: [pre-commit]
+      - id: ruff
+        name: ruff (strict check on push)
+        args: ["--no-fix"]
+        stages: [pre-push]
+      - id: ruff-format
+        stages: [pre-commit]
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.11.2
+    hooks:
+      - id: mypy
+        files: ^src/
+        stages: [pre-push]
+
+# (Bật nếu cần)
+#  - repo: https://github.com/Yelp/detect-secrets
+#    rev: v1.5.0
+#    hooks:
+#      - id: detect-secrets
+#        stages: [commit, push]
+
+ci:
+  autofix_commit_msg: "chore: pre-commit auto fixes"
+  autofix_prs: true
+  autoupdate_branch: develop
+  autoupdate_schedule: monthly
