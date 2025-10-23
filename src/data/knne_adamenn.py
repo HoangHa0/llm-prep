@@ -102,32 +102,30 @@ from sklearn.utils import check_random_state
 # -----------------------------------------------------------------------------
 
 def pairwise_weighted_distances(
+    X0: np.ndarray, 
     X: np.ndarray, 
-    Y: np.ndarray, 
     W: np.ndarray
 ) -> np.ndarray:
     """
-    Compute pairwise weighted Euclidean distances between two sets of points.
+    Compute pairwise weighted Euclidean distances between two sets of points (X0 and X).
 
     Parameters
     ----------
-    X : (n, q) array
+    X0 : (m, q) array
         First set of points.
-    Y : (m, q) array
+    X : (N, q) array
         Second set of points.
-    W : (q,) array
-        Feature weights.
+    W : (m, q) array
+        Feature weights for each row in X0.
 
     Returns
     -------
-    D : (n, m) array
+    D : (m, N) array
         Pairwise weighted distances.
     """
-    # Ensure weights are a 1D array
-    W = W.flatten()
-    
+
     # Compute weighted squared differences and sum over features
-    D = np.sqrt((W * (X[:, np.newaxis, :] - Y[np.newaxis, :, :]) ** 2).sum(axis=2))
+    D = np.sqrt((W[:, np.newaxis, :] * (X0[:, np.newaxis, :] - X[np.newaxis, :, :]) ** 2).sum(axis=2))                           # (m, N)                                   
     
     return D
     
@@ -403,7 +401,6 @@ class ADAMENNWeights:
     def _exponential_weights(
         self,
         R_bar: np.ndarray,
-        c: float 
     ) -> np.ndarray:
         """
         Compute exponential weights per sample w_i ∝ exp(c * R_i) with R_i = max(R̄) - R̄_i done row-wise for R_bar with shape (m, q)
@@ -412,8 +409,6 @@ class ADAMENNWeights:
         ----------
         R_bar : (m, q) array
             Each row holds local feature relevance scores for a query.
-        c : float
-            Positive factor controlling "peakiness" of the weights.
 
         Returns
         -------
@@ -422,7 +417,7 @@ class ADAMENNWeights:
         """
         R = R_bar.max(axis=1, keepdims=True) - R_bar                                                                             # (m, q)
 
-        cR = c * R                                  
+        cR = self.c * R                                  
         # Numerical stability: subtract the row-wise max before exp; doesn't change probabilities 
         cR = cR - cR.max(axis=1, keepdims=True)
 
@@ -464,9 +459,9 @@ class ADAMENNWeights:
 
             # Step 3: Compute relevance measures R̄(X0) = {r̄(x0) ∀ x0 ∈ X0}; r̄(x0) = {r̄_i(x0) | i ∈ [0, q-1]} (Eq. 7 - 8)                   
             # (a) Compute full local class posterior P̂(j|z), z ∈ N(X0)
-            post_Z = self._full_local_posterior_batch(X, y, N_X0_X, self.classes_, self.K1)                                      # (m, K0, C) 
+            post_Z = self._full_local_posterior_batch(N_X0_X, self.K1)                                                           # (m, K0, C) 
             # (b) Compute full local class posterior bar_P̂(j|x_i=z_i)                                                                             
-            post_Zi = self._expected_full_local_posterior_given_xi_batch(X, y, N_X0_X, self.classes_, self.K2, self.L)           # (m, K0, q, C)
+            post_Zi = self._expected_full_local_posterior_given_xi_batch(N_X0_X, self.K2, self.L)                                # (m, K0, q, C)
             # (c) Compute the weighted chi-squared distance between P̂(j|z) and bar_P̂(j|x_i=z_i)
             R = self._weighted_chisq_distance_batch(post_Z, post_Zi)
             # (d) Compute the local feature relevance measures
@@ -627,7 +622,7 @@ class WeightedKNN:
         _, W_mask = self._sample_feature_subpspace(W, NoF, with_replacement, rng_seed)                                           # (m, q)
 
         # Weighted squared distances
-        D2 = pairwise_weighted_distances(X, X0_std, W_mask)                                                                      # (m, N)
+        D2 = pairwise_weighted_distances(X0_std, X, W_mask)                                                                      # (m, N)
         k_idx = np.argsort(D2, axis=1)[:, :self.k]                                                                               # (m, k)
 
         # Get neighbor labels for queries
@@ -703,7 +698,7 @@ class KNNEClassifier:
 
         Returns
         -------
-        self : KNNEClassifier
+        self : sEClassifier
             Fitted classifier ensemble.
         """        
         self.X_ = X
@@ -749,10 +744,11 @@ class KNNEClassifier:
         knn_labels = np.empty((m, NoC, k), dtype=int)
 
         # One RNG to diversify voters (each voter gets its own subspace draw)
+        INT32_MAX_EXCL = np.iinfo(np.int32).max 
         rng = self.rng_ if isinstance(self.rng_, np.random.RandomState) else check_random_state(self.rng_)
 
         for c, knn in enumerate(self.knns_):
-            seed_c = rng.randint(0, 2**32 - 1)
+            seed_c = int(rng.randint(0, INT32_MAX_EXCL))
             yk = knn.kneighbor_labels(
                 X0, W, self.NoF,
                 with_replacement=self.with_replacement,
@@ -784,7 +780,7 @@ class KNNEClassifier:
         -------
         y_pred : (m,) int array
         """
-        if self.adamenn_ is None or self.knn_ is None:
+        if self.adamenn_ is None or self.knns_ is None:
             raise RuntimeError("The classifier ensemble has not been fitted yet. Please call 'fit' first.")
         
         m = X0.shape[0]
