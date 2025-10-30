@@ -30,6 +30,15 @@ This file provides three main classes:
     feature-subspace sampling and voting (simple / counting / Borda).
     It uses the WeightedKNN class as base classifier.
 
+References
+----------
+• Domeniconi, C., Peng, J., & Gunopulos, D. (2002). Locally adaptive
+  dimensionality reduction for nearest neighbor classification. IEEE
+  Transactions on Pattern Analysis and Machine Intelligence, 24(9), 1281-1295.
+• Domeniconi, C., & Yan, B. (2004). Nearest neighbor ensemble. In Proceedings
+  of the 17th International Conference on Pattern Recognition, 2004. ICPR 2004.
+  (Vol. 1, pp. 228-231). IEEE.
+
     
 ADAMENN
 
@@ -92,7 +101,6 @@ from dataclasses import dataclass
 from typing import Optional, Tuple, List, Literal
 
 import numpy as np
-from collections import Counter
 
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import check_random_state
